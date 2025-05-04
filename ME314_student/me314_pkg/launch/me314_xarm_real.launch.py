@@ -36,6 +36,7 @@ def generate_launch_description():
             'no_gui_ctrl': 'false',
             'report_type': 'rich',
             'add_ft_sensor': 'true',
+            'velocity_control': 'true',
         }.items()
     )
     
