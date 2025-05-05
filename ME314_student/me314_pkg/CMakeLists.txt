@@ -39,6 +39,8 @@ install(PROGRAMS
   me314_py/xarm_planner/ft_sensing.py
   me314_py/xarm_planner/ft_monitor.py
   me314_py/xarm_planner/full_pipeline.py
+  me314_py/utils/standalone_realsense_pub.py
+  me314_py/xarm_planner/ball_tracker.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

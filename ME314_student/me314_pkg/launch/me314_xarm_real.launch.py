@@ -61,6 +61,17 @@ def generate_launch_description():
             'align_depth.enable': True
         }]
     )
+
+    # 4) Launch the RealSense camera publisher
+    standalone_realsense_pub_node = Node(
+        package='me314_pkg',
+        executable='standalone_realsense_pub.py',
+        name='standalone_realsense_pub',
+        output='screen',
+        parameters=[{
+            'serial_no': '317222074068'
+        }]
+    )
     
     # Add a delay before starting the commander
     delayed_commander = TimerAction(period=7.0, actions=[xarm_pose_commander_node])
@@ -69,5 +80,6 @@ def generate_launch_description():
         robot_ip_arg,
         xarm_moveit_realmove_launch,
         delayed_commander,
-        realsense_node
+        realsense_node,
+        standalone_realsense_pub_node
     ])

@@ -490,51 +490,51 @@ def main(args=None):
     world_coords_ball = node.camera_to_base_tf(camera_coords_ball, 'camera_color_optical_frame')
     node.get_logger().info(f"Ball world coords: {world_coords_ball}")
 
-    # # Calculate five observation poses (orbit in the y-z plane, 10 cm radius)
-    # radius_m     = 0.10
-    # angles_deg   = [60, 75, 90, 105, 120]
+    # Calculate five observation poses (orbit in the y-z plane, 10 cm radius)
+    radius_m     = 0.10
+    angles_deg   = [60, 75, 90, 105, 120]
 
-    # target_ball = np.array([world_coords_ball[0, 0] - 0.066,
-    #                         world_coords_ball[1, 0],
-    #                         world_coords_ball[2, 0]])
-    # node.get_logger().info(f"Target ball: {target_ball}")
+    target_ball = np.array([world_coords_ball[0, 0] - 0.066,
+                            world_coords_ball[1, 0],
+                            world_coords_ball[2, 0]])
+    node.get_logger().info(f"Target ball: {target_ball}")
 
-    # node.get_logger().info("Generating observation poses…")
-    # for k, ang in enumerate(angles_deg, 1):
-    #     theta = np.deg2rad(ang)
-    #     dy    =  radius_m * np.cos(theta)
-    #     dz    =  radius_m * np.sin(theta)
+    node.get_logger().info("Generating observation poses…")
+    for k, ang in enumerate(angles_deg, 1):
+        theta = np.deg2rad(ang)
+        dy    =  radius_m * np.cos(theta)
+        dz    =  radius_m * np.sin(theta)
 
-    #     ee_p  = np.array([world_coords_ball[0, 0] - 0.066,
-    #                     world_coords_ball[1, 0] + dy,
-    #                     world_coords_ball[2, 0] + dz])
+        ee_p  = np.array([world_coords_ball[0, 0] - 0.066,
+                        world_coords_ball[1, 0] + dy,
+                        world_coords_ball[2, 0] + dz])
 
-    #     try:
-    #         qx, qy, qz, qw = node.look_at_quaternion(ee_p, target_ball)
-    #     except ValueError as exc:
-    #         node.get_logger().error(f"Pose {k}: {exc}")
-    #         continue
+        try:
+            qx, qy, qz, qw = node.look_at_quaternion(ee_p, target_ball)
+        except ValueError as exc:
+            node.get_logger().error(f"Pose {k}: {exc}")
+            continue
 
-    #     pose_k = [ee_p[0], ee_p[1], ee_p[2], qx, qy, qz, qw]
-    #     node.poses_around_ball.append(pose_k)
-    #     node.get_logger().info(f"Obs pose {k}: {pose_k}")
+        pose_k = [ee_p[0], ee_p[1], ee_p[2], qx, qy, qz, qw]
+        node.poses_around_ball.append(pose_k)
+        node.get_logger().info(f"Obs pose {k}: {pose_k}")
 
-    # # Publish the observation poses, and get the HSV and reflectance values
-    # for i, pose in enumerate(node.poses_around_ball):
-    #     node.get_logger().info(f"Publishing Pose {i+1}...")
-    #     node.publish_pose(pose)
-    #     while not node.is_pose_close(node.current_arm_pose, pose):
-    #         rclpy.spin_once(node, timeout_sec=1.0)  # <<< process ROS messages
-    #     average_hsv_new = node.visualDetector.average_hsv_masked(node.masked_image_surround)
-    #     node.get_logger().info(f"Average HSV: {average_hsv_new}")
-    #     average_hsv.append(average_hsv_new)
-    #     refl_mean_new, refl_var_new = node.visualDetector.extract_reflectance(node.masked_image_surround, node.mask_surround)
-    #     node.get_logger().info(f"Reflectance Mean: {refl_mean_new}, Variance: {refl_var_new}")
-    #     refl_mean.append(refl_mean_new)
-    #     refl_var.append(refl_var_new)
+    # Publish the observation poses, and get the HSV and reflectance values
+    for i, pose in enumerate(node.poses_around_ball):
+        node.get_logger().info(f"Publishing Pose {i+1}...")
+        node.publish_pose(pose)
+        while not node.is_pose_close(node.current_arm_pose, pose):
+            rclpy.spin_once(node, timeout_sec=1.0)  # <<< process ROS messages
+        average_hsv_new = node.visualDetector.average_hsv_masked(node.masked_image_surround)
+        node.get_logger().info(f"Average HSV: {average_hsv_new}")
+        average_hsv.append(average_hsv_new)
+        refl_mean_new, refl_var_new = node.visualDetector.extract_reflectance(node.masked_image_surround, node.mask_surround)
+        node.get_logger().info(f"Reflectance Mean: {refl_mean_new}, Variance: {refl_var_new}")
+        refl_mean.append(refl_mean_new)
+        refl_var.append(refl_var_new)
 
     # Go above the ball and close the gripper
-    pose_above_ball = [world_coords_ball[0, 0], world_coords_ball[1, 0], world_coords_ball[2, 0] + 0.02,
+    pose_above_ball = [world_coords_ball[0, 0], world_coords_ball[1, 0], world_coords_ball[2, 0] + 0.05,
                        1.0, 0.0, 0.0, 0.0]
     pose_ball = [world_coords_ball[0, 0], world_coords_ball[1, 0], world_coords_ball[2, 0] - 0.0127,
                  1.0, 0.0, 0.0, 0.0]
@@ -547,7 +547,6 @@ def main(args=None):
         node.publish_pose(pose)
         while not node.is_pose_close(node.current_arm_pose, pose, position_threshold=0.005, orientation_threshold=0.005):
             rclpy.spin_once(node, timeout_sec=1.0)  # <<< process ROS messages
-    node.get_logger().info("Moving arm to 3cm above ball...")
 
     # Save the HSV and reflectance values to a csv file
     df = pd.DataFrame({
@@ -565,104 +564,9 @@ def main(args=None):
     node.FT_force_x = 0.0
     node.FT_force_y = 0.0
     node.FT_force_z = 0.0
-
-    # Calculate torque magnitude
-    # torque_magnitude = math.sqrt(self.FT_torque_x**2 + self.FT_torque_y**2 + self.FT_torque_z**2)
-    
-    # Log the force data (components and magnitude)
-    # self.get_logger().info(f"Force: [{self.FT_force_x:.2f}, {self.FT_force_y:.2f}, {self.FT_force_z:.2f}] N")
-    # self.get_logger().info(f"Force magnitude: {force_magnitude:.2f} N")
-    # while node.stress_stop_counter < 5:
-    #     force_magnitude = math.sqrt(node.FT_force_x**2 + node.FT_force_y**2 + node.FT_force_z**2)
-    #     node.get_logger().info(f"Force Magnitude: {force_magnitude:.2f} N")
-
-    #     if node.contact_pose is not None:
-    #         displacement = node.contact_pose.position.z - node.current_arm_pose.position.z
-    #         node.get_logger().info(f"Displacement: {displacement:.2f} m")
-
-    #         width = 5.1 / 1000
-    #         length = 32.2 / 1000
-    #         area = width * length
-    #         stress = force_magnitude / area
-    #         strain = displacement / (2 * 0.0508)  # original ball length of 0.0508m
-    #         node.strain.append(strain)
-    #         node.stress.append(stress)
-        
-    #     # Log the torque data (components and magnitude)
-    #     # node.get_logger().info(f"Torque: [{node.FT_torque_x:.2f}, {node.FT_torque_y:.2f}, {node.FT_torque_z:.2f}] Nm")
-    #     # node.get_logger().info(f"Torque magnitude: {torque_magnitude:.2f} Nm")
-
-    #     if node.contact_pose is None:
-    #         if force_magnitude > 0.4:
-    #             node.contact_pose = node.current_arm_pose
-    #             node.get_logger().info("Contact detected.")
-    #         else:
-    #             node.get_logger().info("No contact detected.")
-    #             # move the robot down
-    #             node.get_logger().info("Current pose: "
-    #                                     f"[{node.current_arm_pose.position.x:.2f}, "
-    #                                     f"{node.current_arm_pose.position.y:.2f}, "
-    #                                     f"{node.current_arm_pose.position.z:.2f}]")
-    #             pose = [node.current_arm_pose.position.x,
-    #                                 node.current_arm_pose.position.y,
-    #                                 node.current_arm_pose.position.z - 0.007,
-    #                                 node.current_arm_pose.orientation.x,
-    #                                 node.current_arm_pose.orientation.y,
-    #                                 node.current_arm_pose.orientation.z,
-    #                                 node.current_arm_pose.orientation.w]
-    #             node.publish_pose(pose)
-    #             while not node.is_pose_close(node.current_arm_pose, pose, position_threshold=0.001):
-    #                 rclpy.spin_once(node, timeout_sec=1.0)  # <<< process ROS messages
-    #     else:
-    #         if force_magnitude < 0.7:
-    #             node.get_logger().info("Force is below 1.0N, moving robot 0.003 m down.")
-    #             pose = [node.current_arm_pose.position.x,
-    #                                 node.current_arm_pose.position.y,
-    #                                 node.current_arm_pose.position.z - 0.003, 
-    #                                 node.current_arm_pose.orientation.x,
-    #                                 node.current_arm_pose.orientation.y,
-    #                                 node.current_arm_pose.orientation.z,
-    #                                 node.current_arm_pose.orientation.w]
-    #             node.publish_pose(pose)
-    #             while not node.is_pose_close(node.current_arm_pose, pose, position_threshold=0.001):
-    #                 rclpy.spin_once(node, timeout_sec=1.0)  # <<< process ROS messages
-    #         elif force_magnitude < 1.5:
-    #             node.get_logger().info("Force is between 1N and 1.75N, moving robot 0.001m down.")
-    #             pose = [node.current_arm_pose.position.x,
-    #                                 node.current_arm_pose.position.y,
-    #                                 node.current_arm_pose.position.z - 0.001,
-    #                                 node.current_arm_pose.orientation.x,
-    #                                 node.current_arm_pose.orientation.y,
-    #                                 node.current_arm_pose.orientation.z,
-    #                                 node.current_arm_pose.orientation.w]
-    #             node.publish_pose(pose)
-    #             start_time = node.get_clock().now()  # <<< Get ROS2 time now
-    #             while not node.is_pose_close(node.current_arm_pose, pose, position_threshold=0.001):
-    #                 rclpy.spin_once(node, timeout_sec=1.0)
-
-    #                 # Check if more than 5 seconds have passed
-    #                 elapsed_time = node.get_clock().now() - start_time
-    #                 if elapsed_time.nanoseconds * 1e-9 > 5.0:
-    #                     node.get_logger().warn("Timeout: Robot did not reach pose in 5 seconds. Setting final pose.")
-    #                     if node.final_pose is None:
-    #                         node.final_pose = node.current_arm_pose
-    #                         node.get_logger().info("Final pose set after timeout.")
-    #                         node.stress_stop_counter = 5
-    #                     break
-    #         else:
-    #             node.get_logger().info("Force is above 1.75N, stopped the robot.")
-    #             node.stress_stop_counter += 1
-    #             if node.final_pose is None:
-    #                 node.final_pose = node.current_arm_pose
-    #                 node.get_logger().info("Final pose set.")
     
     node.press_down_until_force(f_stop_N=2.5, v_mm_s=-0.5)
 
-    # Switch back to MoveIt-compatible control
-    node.reset_to_moveit_mode()
-    node.restart_traj_controller()
-    # TODO: Figure out why position tolerances are violated
-    node.get_logger().info("Moving back to initial position...")
     init_pose = [
         node.init_arm_pose.position.x,
         node.init_arm_pose.position.y,
@@ -673,14 +577,14 @@ def main(args=None):
         node.init_arm_pose.orientation.w
     ]
 
-    # node.set_arm_mode(1)   # ← switch back to MoveIt trajectory control
-    node.publish_pose(pose_above_ball)
-    node.publish_pose(init_pose)
+    # # node.set_arm_mode(1)   # ← switch back to MoveIt trajectory control
+    # node.publish_pose(pose_above_ball)
+    # node.publish_pose(init_pose)
 
-    while not node.is_pose_close(node.current_arm_pose, init_pose, position_threshold=0.005):
-        rclpy.spin_once(node, timeout_sec=0.5)
+    # while not node.is_pose_close(node.current_arm_pose, init_pose, position_threshold=0.005):
+    #     rclpy.spin_once(node, timeout_sec=0.5)
 
-    node.publish_gripper_position(0.0)  # Open the gripper
+    # node.publish_gripper_position(0.0) # Open the gripper
 
     # Save the strain and stress data to a csv file
     # data = {
@@ -711,38 +615,38 @@ def main(args=None):
     node.destroy_node()
     rclpy.shutdown()
 
-    # matplotlib.use('Agg')          # guarantees no GUI errors
+    matplotlib.use('Agg')          # guarantees no GUI errors
 
-    # df = pd.read_csv('strain_stress_data.csv')
+    df = pd.read_csv('press_down_run.csv')
 
-    # # Scatter plot
-    # plt.scatter(df['strain'], df['stress'], color='blue', label='Data')
+    # Scatter plot
+    plt.scatter(df['z_mm'], df['F_N'], color='blue', label='Data')
 
-    # # # Line of best fit
-    # # X = df['strain'].values.reshape(-1, 1)
-    # # y = df['stress'].values
-    # # model = LinearRegression()
-    # # model.fit(X, y)
-    # # y_pred = model.predict(X)
+    # # Line of best fit
+    # X = df['strain'].values.reshape(-1, 1)
+    # y = df['stress'].values
+    # model = LinearRegression()
+    # model.fit(X, y)
+    # y_pred = model.predict(X)
 
-    # # # Plot the line
-    # # plt.plot(df['strain'], y_pred, color='red', label='Best Fit Line')
+    # # Plot the line
+    # plt.plot(df['strain'], y_pred, color='red', label='Best Fit Line')
 
-    # # # R^2 score
-    # # r2 = r2_score(y, y_pred)
-    # # plt.text(0.05, 0.95, f'$R^2 = {r2:.3f}$', transform=plt.gca().transAxes,
-    # #         fontsize=10, verticalalignment='top')
+    # # R^2 score
+    # r2 = r2_score(y, y_pred)
+    # plt.text(0.05, 0.95, f'$R^2 = {r2:.3f}$', transform=plt.gca().transAxes,
+    #         fontsize=10, verticalalignment='top')
 
-    # # Labels and grid
-    # plt.xlabel('Strain')
-    # plt.ylabel('Stress (Pa)')
-    # plt.title('Stress–Strain Curve')
-    # plt.legend()
-    # plt.grid(True)
+    # Labels and grid
+    plt.xlabel('Deformation (mm)')
+    plt.ylabel('Force (N)')
+    plt.title('Stress–Strain Curve')
+    plt.legend()
+    plt.grid(True)
 
-    # plt.tight_layout()
-    # plt.savefig('stress_strain_curve.png', dpi=150)
-    # print("Curve saved to stress_strain_curve.png")
+    plt.tight_layout()
+    plt.savefig('press_down.png', dpi=150)
+    print("Curve saved to press_down.png")
 
 if __name__ == '__main__':
     main()
