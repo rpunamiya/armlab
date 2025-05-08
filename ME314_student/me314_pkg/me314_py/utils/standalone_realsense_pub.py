@@ -29,6 +29,7 @@ class RealSensePublisher(Node):
         cfg = rs.config()
         cfg.enable_device(serial)
         cfg.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        cfg.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
 
         self.pipeline = rs.pipeline()
         profile = self.pipeline.start(cfg)
@@ -40,6 +41,8 @@ class RealSensePublisher(Node):
         self.bridge = CvBridge()
         self.image_pub = self.create_publisher(Image, '/standalone/image_raw', 10)
         self.info_pub  = self.create_publisher(CameraInfo, '/standalone/camera_info', 10)
+        self.depth_pub = self.create_publisher(Image, '/standalone/depth/image_raw', 10)
+        self.depth_info_pub = self.create_publisher(CameraInfo, '/standalone/depth/camera_info', 10)
 
         self.frame_id = 'standalone_camera_color_optical_frame'
         self.timer = self.create_timer(1.0 / 30.0, self.publish_frame)
@@ -49,6 +52,10 @@ class RealSensePublisher(Node):
         frames = self.pipeline.wait_for_frames()
         color_frame = frames.get_color_frame()
         if not color_frame:
+            return
+        
+        depth_frame = frames.get_depth_frame()
+        if not depth_frame:
             return
 
         # Convert image
@@ -80,6 +87,35 @@ class RealSensePublisher(Node):
 
         self.image_pub.publish(img_msg)
         self.info_pub.publish(cam_info)
+
+        # Depth image
+        depth_image = np.asanyarray(depth_frame.get_data())
+        depth_msg = self.bridge.cv2_to_imgmsg(depth_image, encoding='16UC1')
+        depth_msg.header = img_msg.header  # same timestamp & frame
+        self.depth_pub.publish(depth_msg)
+
+        # Reuse intrinsics for depth (or re-query if different stream profile is needed)
+        depth_info = CameraInfo()
+        depth_info.header = img_msg.header
+        depth_info.height = self.intrinsics.height
+        depth_info.width  = self.intrinsics.width
+        depth_info.distortion_model = 'plumb_bob'
+        depth_info.d = list(self.intrinsics.coeffs)
+        depth_info.k = [
+            self.intrinsics.fx, 0.0, self.intrinsics.ppx,
+            0.0, self.intrinsics.fy, self.intrinsics.ppy,
+            0.0, 0.0, 1.0
+        ]
+        depth_info.r = [1.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0,
+                        0.0, 0.0, 1.0]
+        depth_info.p = [
+            self.intrinsics.fx, 0.0, self.intrinsics.ppx, 0.0,
+            0.0, self.intrinsics.fy, self.intrinsics.ppy, 0.0,
+            0.0, 0.0, 1.0, 0.0
+        ]
+        self.depth_info_pub.publish(depth_info)
+
 
     def destroy_node(self):
         self.pipeline.stop()

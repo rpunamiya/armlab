@@ -33,9 +33,6 @@ class BallTrackerOffline(Node):
         # Ball color HSV range (example: yellow)
         self.hsv_mean, self.hsv_tol = self.load_hsv_from_csv('hsv_reflectance_data.csv')
 
-        # TODO - Calibrate this polynomial to your camera
-        self.row_to_height = np.poly1d([-0.00095, 0.89, -0.10])
-
         # State
         self.frames = []
         self.start_time = None
@@ -55,7 +52,10 @@ class BallTrackerOffline(Node):
             avg_hsv = np.mean(hsv_array, axis=0)
             std_hsv = np.std(hsv_array, axis=0)
 
+            avg_hsv = [10, 200, 100]
             self.get_logger().info(f"Average HSV from CSV: {avg_hsv}")
+            std_hsv = (10, 50, 50)
+            self.get_logger().info(f"Standard Deviation HSV from CSV: {std_hsv}")
             return tuple(int(round(x)) for x in avg_hsv), tuple(int(round(x)) for x in std_hsv)
         except Exception as e:
             self.get_logger().error(f"Error loading HSV values from CSV: {e}")
@@ -95,12 +95,15 @@ class BallTrackerOffline(Node):
         heights = []
         times = []
 
+        # depth_frames = np.load('depth_video.npy')  # shape: (N, H, W)
+        intrinsics = {'fx': 609.4088745117188, 'fy': 609.080078125, 'cx': 335.96954345703125, 'cy': 247.07424926757812}
+
         for i in range(len(self.frames)):
             ret, frame = cap.read()
             if not ret:
                 break
             t = i / self.fps
-            h = self.extract_ball_height(frame)
+            h = self.extract_ball_height(frame, intrinsics)
             if h is not None:
                 heights.append(h)
                 times.append(t)
@@ -113,15 +116,20 @@ class BallTrackerOffline(Node):
                 writer.writerow([f"{t:.3f}", f"{h:.4f}"])
         self.get_logger().info(f"Height CSV saved to {self.output_csv_path}")
 
-    def extract_ball_height(self, frame):
+    def extract_ball_height(self, frame, intrinsics):
+        cv2.imwrite("test_frame.png", frame)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower = np.subtract(self.hsv_mean, self.hsv_tol)
         upper = np.add(self.hsv_mean, self.hsv_tol)
         mask  = cv2.inRange(hsv, lower, upper)
         mask  = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5,5), np.uint8))
+        overlay = cv2.bitwise_and(frame, frame, mask=mask)
+        cv2.imwrite("test_overlay.png", overlay)
+
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
+            self.get_logger().info("No contours found.")
             return None
         contour = max(contours, key=cv2.contourArea)
         area = cv2.contourArea(contour)
@@ -130,8 +138,23 @@ class BallTrackerOffline(Node):
         M = cv2.moments(contour)
         if M['m00'] == 0:
             return None
-        cy = int(M['m01'] / M['m00'])  # pixel row
-        return float(self.row_to_height(cy))
+        u = int(M['m10'] / M['m00'])  # pixel column
+        v = int(M['m01'] / M['m00'])  # pixel row
+
+        # Get depth at (u, v)
+        # if depth_frame.shape != frame.shape[:2]:
+        #     depth_frame = cv2.resize(depth_frame, (frame.shape[1], frame.shape[0]))
+        # Z = depth_frame[v, u] / 1000.0  # mm to meters
+        # if Z == 0:
+        #     return None
+        Z = 0.52
+
+        fy = intrinsics['fy']
+        cy = intrinsics['cy']
+
+        Y = (v - cy) * Z / fy  # vertical height from pinhole model
+
+        return Y
 
 def main(args=None):
     rclpy.init(args=args)
